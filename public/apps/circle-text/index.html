@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Circular Text Layout Calculator</title>
+
+  <!-- App icon / favicon / PWA（icons/ 內，一律相對路徑，獨立版與 InProgress 鏡像共用）§5.5 -->
+  <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon-light.svg" media="(prefers-color-scheme: light)" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+  <link rel="manifest" href="./icons/manifest.json" />
+  <meta name="theme-color" content="#0f1115" />
+
+  <!-- 防主題閃爍：render 前先讀 localStorage 設好 data-theme 與 dark-mode/light-mode class（§5.1 坑） -->
+  <script>
+    try {
+      var t = localStorage.getItem('circle-text-theme') || 'dark';
+      var r = document.documentElement;
+      r.dataset.theme = t;
+      r.classList.toggle('dark-mode', t === 'dark');
+      r.classList.toggle('light-mode', t === 'light');
+    } catch (e) { }
+  </script>
+
+  <!-- Materialize 1.0.0 + Material Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <!-- Materialize 元件深色（家族共用；在 materialize.css 之後、本頁樣式之前） -->
+  <link rel="stylesheet" href="./materialize-dark.css" />
+
+  <link rel="stylesheet" href="./circle-text.css" />
+  <link rel="stylesheet" href="./side-tool.css" />
+</head>
+
+<body data-i18n-doctitle="title.page">
+
+  <main>
+    <div class="app-container">
+
+      <header class="topbar">
+        <h1 data-i18n="app.title">圓形排字版面計算</h1>
+        <div class="sub" data-i18n="app.sub">固定圈距模型</div>
+      </header>
+
+      <div class="row layout-row">
+
+        <!-- ── 參數 ────────────────────────────────────────────────────── -->
+        <div class="col s12 m6 l4">
+          <section class="card panel" aria-labelledby="params-title">
+            <h2 class="panel-title" id="params-title" data-i18n="param.legend">參數</h2>
+
+            <div class="input-field">
+              <select id="mode">
+                <option value="rings" data-i18n="mode.rings">調圈數</option>
+                <option value="gap" data-i18n="mode.gap">調圈距</option>
+                <option value="n1" data-i18n="mode.n1">調內圈字數</option>
+                <option value="scale" data-i18n="mode.scale">縮放字距</option>
+                <option value="none" data-i18n="mode.none">不配平</option>
+              </select>
+              <label for="mode" data-i18n="param.mode">配平方式</label>
+            </div>
+            <p class="mode-hint" id="mode-hint" data-i18n-html="mode.hint.rings"></p>
+
+            <div class="input-field" data-field="total">
+              <input id="total" type="number" min="1" step="1" inputmode="numeric" />
+              <label for="total" data-i18n="param.total">總字數（配平目標）</label>
+            </div>
+
+            <div class="input-field" data-field="rings">
+              <input id="rings" type="number" min="1" step="1" inputmode="numeric" />
+              <label for="rings" data-i18n="param.rings">圈數</label>
+              <span class="solved-badge" data-i18n="param.solved">由配平解出</span>
+            </div>
+
+            <div class="input-field" data-field="fontSize">
+              <input id="fontSize" type="number" min="0.01" step="0.5" inputmode="decimal" />
+              <label for="fontSize" data-i18n="param.fontSize">字級 / 字寬 (pt)</label>
+            </div>
+
+            <div class="input-field" data-field="gap">
+              <input id="gap" type="number" min="0" step="0.5" inputmode="decimal" />
+              <label for="gap" data-i18n="param.gap">圈距 (pt)</label>
+              <span class="solved-badge" data-i18n="param.solved">由配平解出</span>
+            </div>
+
+            <div class="input-field" data-field="n1">
+              <input id="n1" type="number" min="1" step="1" inputmode="numeric" />
+              <label for="n1" data-i18n-html="param.n1">內圈字數 N<sub>1</sub></label>
+              <span class="solved-badge" data-i18n="param.solved">由配平解出</span>
+            </div>
+
+            <div class="input-field" data-field="innerDiameter">
+              <input id="innerDiameter" type="number" min="0" step="0.01" inputmode="decimal" />
+              <label for="innerDiameter" data-i18n="param.innerDiameter">內圈直徑 (mm)</label>
+              <span class="solved-badge" data-i18n="param.solved">由配平解出</span>
+            </div>
+
+            <div class="input-field" data-field="padding">
+              <input id="padding" type="number" min="0" step="1" inputmode="numeric" />
+              <label for="padding" data-i18n="param.padding">SVG 邊界 (pt)</label>
+            </div>
+          </section>
+        </div>
+
+        <!-- ── 尺寸 ────────────────────────────────────────────────────── -->
+        <div class="col s12 m6 l4">
+          <section class="card panel" aria-labelledby="dims-title">
+            <h2 class="panel-title" id="dims-title" data-i18n="dims.title">尺寸計算</h2>
+
+            <div id="messages" class="messages" role="status" aria-live="polite"></div>
+
+            <dl class="metrics" id="metrics">
+              <dt data-i18n-html="dims.r1">R<sub>1</sub>（內圈半徑，基線）</dt>
+              <dd><span class="metric" id="m-r1">—</span> <span class="unit">pt</span></dd>
+
+              <dt data-i18n-html="dims.router">R<sub>o</sub>（最外圈半徑，基線）</dt>
+              <dd><span class="metric" id="m-router">—</span> <span class="unit">pt</span></dd>
+
+              <dt data-i18n="dims.outer">外徑 寬 × 高</dt>
+              <dd><span class="metric" id="m-outer">—</span> <span class="unit">pt</span>
+                <span class="alt" id="m-outer-mm"></span></dd>
+
+              <dt data-i18n="dims.inner">內徑 寬 × 高（中空）</dt>
+              <dd><span class="metric" id="m-inner">—</span> <span class="unit">pt</span>
+                <span class="alt" id="m-inner-mm"></span></dd>
+
+              <dt data-i18n="dims.charSize">字寬 / 字高（設定值）</dt>
+              <dd><span class="metric" id="m-char">—</span> <span class="unit">pt</span></dd>
+
+              <dt class="arc-dt" data-i18n="dims.arc">實際每字弧長</dt>
+              <dd><span class="metric" id="m-arc">—</span> <span class="unit">pt</span>
+                <span class="delta" id="m-arc-delta"></span></dd>
+
+              <dt data-i18n="dims.central">中心單字最大字級</dt>
+              <dd><span class="metric" id="m-central">—</span> <span class="unit">pt</span>
+                <span class="alt" id="m-central-px"></span></dd>
+            </dl>
+
+            <p class="hint" data-i18n="dims.note">pt 為印刷單位</p>
+          </section>
+        </div>
+
+        <!-- ── 每圈分配 ────────────────────────────────────────────────── -->
+        <div class="col s12 l4">
+          <section class="card panel" aria-labelledby="table-title">
+            <h2 class="panel-title" id="table-title" data-i18n="table.title">每圈分配</h2>
+            <div class="table-scroll">
+              <table class="ring-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="table.ring">圈</th>
+                    <th data-i18n="table.chars">字數</th>
+                    <th data-i18n="table.radius">半徑 (pt)</th>
+                    <th data-i18n="table.arc">字距 (pt)</th>
+                  </tr>
+                </thead>
+                <tbody id="ring-rows"></tbody>
+              </table>
+            </div>
+            <div class="sum" id="ring-sum"></div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 右側浮動工具列（§5.5 排序：入口鍵 → app 工具 → mode → lang）──────── -->
+  <div class="side-tools">
+    <div id="setting-preview" class="side-tool" data-i18n-title="tool.preview" title="SVG 示意圖">
+      <span class="app-icon" role="img" aria-label="circle-text"></span>
+    </div>
+    <div id="setting-copy" class="side-tool" data-i18n-title="tool.copyJson" title="複製 JSON">
+      <i class="material-icons">content_copy</i>
+    </div>
+    <div id="setting-link" class="side-tool" data-i18n-title="tool.copyLink" title="複製連結">
+      <i class="material-icons">link</i>
+    </div>
+    <div id="setting-download" class="side-tool" data-i18n-title="tool.downloadSvg" title="下載 SVG">
+      <i class="material-icons">file_download</i>
+    </div>
+    <div id="setting-import" class="side-tool" data-i18n-title="tool.import" title="貼上 JSON 匯入">
+      <i class="material-icons">content_paste</i>
+    </div>
+    <div id="setting-guide" class="side-tool" data-i18n-title="tool.guide" title="使用說明">
+      <i class="material-icons">info</i>
+    </div>
+    <div id="setting-mode" class="side-tool" data-i18n-title="tool.mode" title="切換 light / dark">
+      <i class="material-icons">dark_mode</i>
+    </div>
+    <div id="setting-lang" class="side-tool" data-i18n-title="tool.lang" title="語言">
+      <i class="material-icons">translate</i>
+    </div>
+  </div>
+
+  <!-- ── SVG 示意圖 ───────────────────────────────────────────────────── -->
+  <div id="svg-modal" class="modal wide-modal">
+    <div class="modal-content">
+      <h2 class="modal-title" data-i18n="svg.title">SVG 示意圖（單位：pt）</h2>
+      <div class="svg-host" id="svg-host"></div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <!-- ── 貼上 JSON 匯入 ───────────────────────────────────────────────── -->
+  <div id="import-modal" class="modal">
+    <div class="modal-content">
+      <h2 class="modal-title" data-i18n="import.title">貼上 JSON 匯入</h2>
+      <p class="hint" data-i18n="import.hint"></p>
+      <div class="input-field">
+        <textarea id="import-text" class="materialize-textarea import-text" spellcheck="false"
+          data-i18n-placeholder="import.placeholder" placeholder="把 JSON 貼在這裡…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect btn-flat" data-i18n="btn.cancel">取消</a>
+      <a href="#!" id="import-apply" class="waves-effect btn-flat" data-i18n="btn.apply">套用</a>
+    </div>
+  </div>
+
+  <!-- ── 使用說明 ─────────────────────────────────────────────────────── -->
+  <div id="guide-modal" class="modal">
+    <div class="modal-content guide">
+      <h2 class="modal-title" data-i18n="guide.title">使用說明</h2>
+      <h3 data-i18n="guide.model.h"></h3>
+      <p data-i18n-html="guide.model.p"></p>
+      <h3 data-i18n="guide.fit.h"></h3>
+      <p data-i18n-html="guide.fit.p"></p>
+      <h3 data-i18n="guide.arc.h"></h3>
+      <p data-i18n-html="guide.arc.p"></p>
+      <h3 data-i18n="guide.io.h"></h3>
+      <p data-i18n-html="guide.io.p"></p>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+  <script src="./circle-text-lib.js"></script>
+  <script src="./i18n.js"></script>
+  <script src="./locales/zh-Hant.js"></script>
+  <script src="./locales/en.js"></script>
+  <script src="./locales/ja.js"></script>
+  <script src="./side-tool.js"></script>   <!-- 共用 utility：側鍵行為（check 微回饋＋溢出收納） -->
+  <script src="./circle-text.js"></script>
+</body>
+
+</html>

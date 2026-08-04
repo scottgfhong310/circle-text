@@ -1,0 +1,25 @@
+{
+  "name": "circle-text",
+  "version": "1.0.0",
+  "description": "圓形排字版面計算器：固定圈距模型下算出每圈字數、半徑與外徑，配平時可指定要調圈數／圈距／內圈字數，並恆回報實際字距；附 SVG 示意圖、深連結與 JSON 匯出，支援 light/dark 與三語。",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "verify": "node scripts/verify.js"
+  },
+  "keywords": [
+    "circular-text",
+    "typography",
+    "layout",
+    "calculator",
+    "svg",
+    "mandala",
+    "express",
+    "materialize"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "morgan": "^1.10.0"
+  }
+}

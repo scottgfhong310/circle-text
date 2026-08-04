@@ -1,0 +1,454 @@
+/* ==========================================================================
+   circle-text.css — 本頁樣式 + 主題 token
+   Materialize 元件的深色交給共用 materialize-dark.css（DESIGN_GUIDELINES §5.1）；
+   本檔只管非 Materialize 的自訂元素。
+   ========================================================================== */
+
+/* ── 主題 token（§5.1 家族標準）───────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #161a22;
+  --surface-2: #1b2030;
+  --text: #e8eaf0;
+  --muted: #a8b0c0;
+  --border: rgba(255, 255, 255, .12);
+  --accent: #90caf9;
+  --card-bg: #0f1115;
+  --tool-bg: #1b2030;
+  --tool-fg: #e8eaf0;
+  --overlay: rgba(10, 14, 22, .84);
+  --drop-border: #3a4252;
+
+  --ok: #6ee7a8;
+  --warn: #ffb86b;
+  --danger: #ff6e6e;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --surface: #fff;
+  --surface-2: #eef1f5;
+  --text: #1f2328;
+  --muted: #57606a;
+  --border: rgba(0, 0, 0, .12);
+  --accent: #0969da;
+  --card-bg: #fff;
+  --tool-bg: #fff;
+  --tool-fg: #1f2328;
+  --overlay: rgba(240, 243, 247, .86);
+  --drop-border: #c4ccd6;
+
+  --ok: #1a7f4b;
+  --warn: #9a5b00;
+  --danger: #c1121f;
+  color-scheme: light;
+}
+
+/* Materialize 元件跟著本 app 的 accent（§5.1「強調色對齊」）——
+   選擇器特異度對齊 materialize-dark 的 html.dark-mode，靠較後載入勝出 */
+html.dark-mode,
+html.light-mode {
+  --mz-primary: var(--accent);
+  --mz-focus: var(--accent);
+  --mz-surface: var(--surface);
+  --mz-text: var(--text);
+}
+
+/* ── 版面 ────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--text);
+  transition: background .2s, color .2s;
+}
+
+/* 右側留出固定工具列的通道——`.side-tools` 是 position:fixed，不留就會壓在卡片上。
+   用 --tool-size（side-tool.css 定義，矮視窗會自動縮到 40px）而非寫死值。 */
+.app-container {
+  width: 94%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 22px calc(var(--tool-size, 46px) + 18px) 48px 0;
+}
+
+.topbar {
+  margin-bottom: 18px;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.topbar .sub {
+  margin-top: 4px;
+  font-size: .85rem;
+  color: var(--muted);
+}
+
+.layout-row {
+  margin-bottom: 0;
+}
+
+/* 三欄等高，讓表格卡的捲動區有明確高度可依 */
+.layout-row>[class^="col"] {
+  display: flex;
+}
+
+.card.panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 18px 22px;
+  margin: 0 0 20px;
+}
+
+.panel-title {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--accent);
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: .78rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ── 參數表單（Materialize 原生，只調間距與輔助標記，§5.7）──────────── */
+.card.panel .input-field {
+  margin-top: .6rem;
+  margin-bottom: .6rem;
+}
+
+.mode-hint {
+  margin: -.2rem 0 1.1rem;
+  padding-left: 2px;
+  font-size: .78rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.mode-hint strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 「由配平解出」徽章：只在該欄位是本次配平的自由變數時出現 */
+.solved-badge {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 0;
+  padding: 1px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-size: .64rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+[data-field].is-solved .solved-badge {
+  display: inline-block;
+}
+
+[data-field].is-solved input[type="number"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-field] input[readonly] {
+  cursor: default;
+}
+
+/* ── 尺寸面板 ────────────────────────────────────────────────────────── */
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 14px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.metrics dt {
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.metrics dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metric {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .95rem;
+  color: var(--text);
+}
+
+.metrics .unit {
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+.metrics .alt {
+  display: block;
+  font-size: .7rem;
+  color: var(--muted);
+}
+
+/* 實際字距是本 app 的主張，給它一條分隔線與強調 */
+.metrics .arc-dt {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+  margin-top: 3px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.metrics .arc-dt+dd {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+  margin-top: 3px;
+}
+
+.delta {
+  display: block;
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+}
+
+.delta.is-off {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ── 訊息（警告／錯誤）───────────────────────────────────────────────── */
+.messages:not(:empty) {
+  margin-bottom: 14px;
+}
+
+.msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 11px;
+  margin-bottom: 7px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.msg i.material-icons {
+  font-size: 17px;
+  line-height: 1.35;
+  flex: 0 0 auto;
+}
+
+.msg-warn {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+
+.msg-error {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+
+/* ── 每圈分配表 ──────────────────────────────────────────────────────── */
+.table-scroll {
+  flex: 1 1 auto;
+  max-height: 460px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ring-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ring-table th,
+.ring-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  font-size: .82rem;
+}
+
+.ring-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-bg);
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ring-table th:first-child,
+.ring-table td:first-child {
+  text-align: center;
+  color: var(--muted);
+}
+
+.ring-table td.chars {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--text);
+}
+
+.ring-table tr.is-empty td.chars {
+  color: var(--warn);
+}
+
+.sum {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  font-size: .85rem;
+  color: var(--text);
+}
+
+.sum b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--accent);
+}
+
+/* ── Modal ───────────────────────────────────────────────────────────── */
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.modal .modal-content {
+  padding: 20px 24px 8px;
+}
+
+.modal-title {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.wide-modal {
+  width: 92%;
+  max-width: 1000px;
+}
+
+.svg-host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0 12px;
+}
+
+/* SVG 以 pt 為單位輸出（下載後即實際印刷尺寸），畫面上由這裡縮到容器內。
+   圖是正方形，只限寬會比 modal 高、逼出垂直捲軸，故寬高都要限。 */
+.svg-host svg {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 62vh;
+}
+
+.guide h3 {
+  margin: 18px 0 6px;
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide h3:first-of-type {
+  margin-top: 6px;
+}
+
+.guide p {
+  margin: 0;
+  font-size: .84rem;
+  line-height: 1.75;
+  color: var(--muted);
+}
+
+.guide p strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.import-text.materialize-textarea {
+  min-height: 160px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .8rem;
+  line-height: 1.6;
+}
+
+/* ── 側鍵：第一顆入口鍵掛 app icon 徽章（§5.5 甲變體）───────────────── */
+#setting-preview {
+  border-radius: 22%;
+  background: none;
+  overflow: hidden;
+}
+
+#setting-preview .app-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: url('./icons/app-icon.svg') center / cover no-repeat;
+}
+
+[data-theme="light"] #setting-preview .app-icon {
+  background-image: url('./icons/app-icon-light.svg');
+}
+
+/* 品牌與工具分區：第一顆徽章與第二顆間距加倍（§5.5） */
+.side-tools>.side-tool:first-child:has(.app-icon) {
+  margin-bottom: var(--tool-gap);
+}
+
+/* ── 列印（dark 主題必須回淺色，§5.1 的兩個坑）─────────────────────── */
+@media print {
+  :root {
+    color-scheme: light !important;
+  }
+
+  body {
+    transition: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .side-tools {
+    display: none !important;
+  }
+
+  .card.panel {
+    border-color: #ccc;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+
+  .table-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+}
