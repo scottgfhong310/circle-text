@@ -1,6 +1,6 @@
 # circle-text
 
-> 版本 v1.1｜最後更新 2026-08-04
+> 版本 v1.1｜最後更新 2026-08-05
 
 [English](README.md) ｜ [繁體中文](README.zh-Hant.md) ｜ [日本語](README.ja.md)
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — circle-text
 
-> 版本 v1.0｜最後更新 2026-08-04
+> 版本 v1.1｜最後更新 2026-08-05
 
 圓形排字版面計算器。**單頁、零後端、零資料庫**——後端只有靜態檔、根路徑轉址、JSON 404。
 
@@ -34,7 +34,7 @@ public/apps/circle-text/
 
 ```bash
 npm install && npm start        # → http://localhost:3000/apps/circle-text/
-npm run verify                  # 17 條契約檢查，全過 exit 0
+npm run verify                  # 20 條契約檢查，全過 exit 0
 node scripts/verify.js --selftest
 ```
 
@@ -48,6 +48,12 @@ node scripts/verify.js --selftest
 - **任何配平模式都必須回報 `arc.mean` 與 `deltaPct`**。這是本 app 存在的理由，
   verify 第 ⑭ 條擋著。新增模式時連同 `SOLVED_FIELD` 一起登記（第 ⑰ 條）。
 - **`snapshot().rings[].characters` 是對下游的契約**，鍵名不可更動（第 ⑯ 條）。
+- **版面反解（`planByExtent`）不挑答案，只列候選。** 給定總字數＋外徑上限＋中空直徑後
+  字級會從方程式裡消掉、圈數與字級嚴格成正比，所以是**一整族解**而非唯一解。
+  整數化時**釘死外徑與總字數**（硬約束）、讓中空直徑讓步——這條由 verify 第 ⑱ 條擋著。
+  改動它之前先讀 `DESIGN.md §9.1`。
+- **`geom.fitsOuterMax` 是三值**：`true`／`false`／`null`（沒設上限＝未判定）。
+  未判定不可畫成合格——第 ⑳ 條擋著。
 - 側鍵排序照 §5.5：`[入口鍵徽章] → app 工具 → #setting-mode → #setting-lang`（第 ② 條）。
 - 共用文案照 §6 正典表逐字抄（第 ⑦ 條）。偏離要在 `db_inprogress.meta_i18n.fd_note` 寫理由。
 
