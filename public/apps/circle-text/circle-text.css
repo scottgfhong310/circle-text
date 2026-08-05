@@ -23,8 +23,6 @@
   --ok: #6ee7a8;
   --warn: #ffb86b;
   --danger: #ff6e6e;
-  --scroll-thumb: #2f3646;
-  --scroll-thumb-hover: #3d4658;
   color-scheme: dark;
 }
 
@@ -45,39 +43,12 @@
   --ok: #1a7f4b;
   --warn: #9a5b00;
   --danger: #c1121f;
-  --scroll-thumb: #c4ccd6;
-  --scroll-thumb-hover: #aab3bf;
   color-scheme: light;
 }
 
-/* 捲軸軌道對齊頁面底色 —— `color-scheme` 會讓瀏覽器用 UA 預設灰畫軌道，
-   在 dark 下那是**第二種深色**（右緣一條、每圈分配卡內側一條）。
-   `scrollbar-color` 是可繼承屬性，設在 :root 就涵蓋所有捲動容器；
-   `::-webkit-scrollbar` 是舊版 WebKit 的後備。
-   ⚠️ `color-scheme` 本身不可拿掉——表單控件與 §5.1 的列印規則都靠它。 */
-:root {
-  scrollbar-color: var(--scroll-thumb) var(--bg);
-}
-
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
-  background: var(--bg);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--scroll-thumb);
-  border: 3px solid var(--bg);
-  border-radius: 8px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--scroll-thumb-hover);
-}
+/* 捲軸軌道對齊頁面底色的規則不在這裡——那是**共用件的事**，收在
+   materialize-dark.css 的 §2 Base（也正是宣告 color-scheme 的地方），
+   規範見 DESIGN_GUIDELINES §5.1。本檔不要再放第二份實作。 */
 
 /* Materialize 元件跟著本 app 的 accent（§5.1「強調色對齊」）——
    選擇器特異度對齊 materialize-dark 的 html.dark-mode，靠較後載入勝出 */
