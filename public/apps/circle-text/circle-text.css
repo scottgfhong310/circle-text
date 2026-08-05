@@ -315,6 +315,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;                   /* 不寫的話 flex 子項的最小高度是內容高，照樣撐爆 */
   max-height: none;
+  height: auto;                    /* 蓋掉 .table-scroll 的 --table-h：那條是給主畫面那張卡等高用的 */
 }
 
 .plan-table td {
@@ -389,9 +390,12 @@ body {
 }
 
 /* ── 每圈分配表 ──────────────────────────────────────────────────────── */
+/* 高度由控制器算出並寫進 --table-h：讓「每圈分配」卡與「參數」卡等高。
+   用 height 而非 max-height——要等高就得撐得起來，max-height 只能限縮不能撐開。
+   沒有 --table-h（例如 JS 還沒跑）時退回一個合理值，不會塌成一行。 */
 .table-scroll {
   flex: 1 1 auto;
-  max-height: 460px;
+  height: var(--table-h, 460px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }

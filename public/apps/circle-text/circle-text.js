@@ -33,6 +33,9 @@
   /** 候選表只列這個行距比區間——低於下限是重疊、高於上限是字小到沒有意義 */
   var RATIO_MIN = 0.8;
   var RATIO_MAX = 4;
+
+  /** 表格捲動區的最小高度：參數卡再矮也不讓它塌到看不見幾列 */
+  var TABLE_MIN_H = 220;
   var writing = false;     // 程式寫欄位時抑制自己的 input handler
   var renderTimer = null;
 
@@ -166,6 +169,7 @@
     renderTable(result);
     syncDiameterFromN1();
     updateUrl();
+    syncTableHeight();
   }
 
   function renderModeHint(mode) {
@@ -297,6 +301,24 @@
       var q = Lib.buildQuery(readInputs());
       history.replaceState(null, '', location.pathname + q);
     } catch (e) { /* file:// 等情境忽略 */ }
+  }
+
+  /**
+   * 讓「每圈分配」卡與「參數」卡等高。
+   *
+   * 兩張卡在 m 斷點不同列（參數在上、表格在下），所以 flex 的自動拉伸幫不上忙，
+   * 只能量出來再寫回去：先算表格卡除了捲動區以外的固定高（標題＋合計＋padding），
+   * 用參數卡的高度扣掉它，就是捲動區該有的高。
+   * 寫進 --table-h，CSS 那邊是 `height`（不是 max-height——要等高就得撐得起來）。
+   */
+  function syncTableHeight() {
+    var params = el.paramsCard, card = el.tableCard, scroll = el.tableScroll;
+    if (!params || !card || !scroll) return;
+    var chrome = card.offsetHeight - scroll.offsetHeight;      // 捲動區以外的固定高
+    var target = params.offsetHeight - chrome;
+    if (!isFinite(target)) return;
+    target = Math.max(TABLE_MIN_H, Math.round(target));
+    document.documentElement.style.setProperty('--table-h', target + 'px');
   }
 
   // ── 紙張換算：填的是「外徑上限」那一格 ────────────────────────────────
@@ -472,6 +494,9 @@
     el.planMessages = $('plan-messages');
     el.planHidden = $('plan-hidden');
     el.planInner = $('planInner');
+    el.paramsCard = document.querySelector('[aria-labelledby="params-title"]');
+    el.tableCard = document.querySelector('[aria-labelledby="table-title"]');
+    el.tableScroll = el.tableCard.querySelector('.table-scroll');
     el.m = {
       r1: $('m-r1'), router: $('m-router'),
       outer: $('m-outer'), outerMm: $('m-outer-mm'),
@@ -605,6 +630,14 @@
 
     window.I18n.apply();
     applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+    // 參數卡的高度會隨語言（文案長度）、斷點、欄位顯示與否而變——
+    // 用 ResizeObserver 觀察它本身，比逐個猜觸發點可靠（§5.5 的 --content-sb 同一手法）
+    if (window.ResizeObserver) {
+      new ResizeObserver(syncTableHeight).observe(el.paramsCard);
+    } else {
+      window.addEventListener('resize', syncTableHeight);
+    }
 
     document.addEventListener('i18n:changed', function () {
       window.I18n.apply();
