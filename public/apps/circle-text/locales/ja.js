@@ -71,6 +71,7 @@ I18n.register('ja', {
   'tool.guide': '使い方',
   'tool.mode': 'ライト / ダーク切替',
   'tool.lang': '言語',
+  'tool.more': 'その他のツール',
 
   /* SVG */
   'svg.title': 'SVG 図（単位：pt）',

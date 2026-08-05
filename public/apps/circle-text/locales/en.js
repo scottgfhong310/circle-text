@@ -71,6 +71,7 @@ I18n.register('en', {
   'tool.guide': 'Usage guide',
   'tool.mode': 'Toggle light / dark',
   'tool.lang': 'Language',
+  'tool.more': 'More tools',
 
   /* SVG */
   'svg.title': 'SVG diagram (units: pt)',

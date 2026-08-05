@@ -71,6 +71,7 @@ I18n.register('zh-Hant', {
   'tool.guide': '使用說明',
   'tool.mode': '切換 light / dark',
   'tool.lang': '語言',
+  'tool.more': '更多工具',
 
   /* SVG */
   'svg.title': 'SVG 示意圖（單位：pt）',
