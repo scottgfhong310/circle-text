@@ -123,6 +123,23 @@ body {
   color: var(--accent);
 }
 
+/* 三張卡等高。基準是「參數」卡（欄位最多、最高），由控制器量出寫進 --card-h。
+   ⚠️ 只有「尺寸計算」掛 is-stretch。「每圈分配」不可以掛——它的捲動區高度是由
+   `卡高 − 捲動區高` 反推 chrome 算出來的，一旦 min-height 把卡撐高，量到的 chrome
+   就是膨脹值，會收斂到「卡片變高但表格沒長、下面空一塊」的錯誤定點。它靠 --table-h
+   就已經精準等高了。「尺寸計算」內容是固定幾列，
+   只能撐開卡片本身，故把註記推到底部，空間留在數據與註記之間而不是尾巴一大塊。
+   窄螢幕（單欄堆疊）不套——那時等高只會製造大片空白。 */
+@media (min-width: 601px) {
+  .card.panel.is-stretch {
+    min-height: var(--card-h, auto);
+  }
+
+  .card.panel.is-stretch > .hint:last-child {
+    margin-top: auto;
+  }
+}
+
 .hint {
   margin: 12px 0 0;
   font-size: .78rem;
@@ -398,6 +415,13 @@ body {
   height: var(--table-h, 460px);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* 單欄堆疊時不跟著參數卡等高：那時參數卡很高，表格會佔掉整個螢幕 */
+@media (max-width: 600px) {
+  .table-scroll {
+    height: 60vh;
+  }
 }
 
 .ring-table {

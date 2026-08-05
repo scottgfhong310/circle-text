@@ -314,11 +314,19 @@
   function syncTableHeight() {
     var params = el.paramsCard, card = el.tableCard, scroll = el.tableScroll;
     if (!params || !card || !scroll) return;
+    var root = document.documentElement;
+
+    // ① 三張卡共同的目標高度＝參數卡（欄位最多、最高）。
+    //    「尺寸計算」靠 CSS 的 min-height 直接吃這個值。
+    root.style.setProperty('--card-h', Math.round(params.offsetHeight) + 'px');
+
+    // ② 「每圈分配」不能只靠 min-height——它要讓捲動區跟著長，否則卡片變高、
+    //    表格仍停在原本高度，下面空一塊。故另算捲動區該有的高。
     var chrome = card.offsetHeight - scroll.offsetHeight;      // 捲動區以外的固定高
     var target = params.offsetHeight - chrome;
     if (!isFinite(target)) return;
     target = Math.max(TABLE_MIN_H, Math.round(target));
-    document.documentElement.style.setProperty('--table-h', target + 'px');
+    root.style.setProperty('--table-h', target + 'px');
   }
 
   // ── 紙張換算：填的是「外徑上限」那一格 ────────────────────────────────
