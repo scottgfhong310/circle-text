@@ -102,6 +102,25 @@
               <span class="solved-badge" data-i18n="param.solved">由配平解出</span>
             </div>
 
+            <div class="input-field" data-field="outerMaxMm">
+              <input id="outerMaxMm" type="number" min="0" step="1" inputmode="decimal" />
+              <label for="outerMaxMm" data-i18n="param.outerMax">外徑上限 (mm)</label>
+            </div>
+
+            <!-- 紙張換算小工具：填的是上面那格，改任一邊即重算（不必按鈕） -->
+            <div class="paper-helper">
+              <div class="input-field">
+                <select id="paper">
+                  <option value="custom" data-i18n="paper.custom">自訂</option>
+                </select>
+                <label for="paper" data-i18n="param.paper">紙張</label>
+              </div>
+              <div class="input-field">
+                <input id="paperMargin" type="number" min="0" step="1" inputmode="decimal" />
+                <label for="paperMargin" data-i18n="param.paperMargin">單邊留邊 (mm)</label>
+              </div>
+            </div>
+
             <div class="input-field" data-field="padding">
               <input id="padding" type="number" min="0" step="1" inputmode="numeric" />
               <label for="padding" data-i18n="param.padding">SVG 邊界 (pt)</label>
@@ -125,7 +144,8 @@
 
               <dt data-i18n="dims.outer">外徑 寬 × 高</dt>
               <dd><span class="metric" id="m-outer">—</span> <span class="unit">pt</span>
-                <span class="alt" id="m-outer-mm"></span></dd>
+                <span class="alt" id="m-outer-mm"></span>
+                <span class="fit-badge" id="m-outer-fit"></span></dd>
 
               <dt data-i18n="dims.inner">內徑 寬 × 高（中空）</dt>
               <dd><span class="metric" id="m-inner">—</span> <span class="unit">pt</span>
@@ -177,6 +197,9 @@
     <div id="setting-preview" class="side-tool" data-i18n-title="tool.preview" title="SVG 示意圖">
       <span class="app-icon" role="img" aria-label="circle-text"></span>
     </div>
+    <div id="setting-plan" class="side-tool" data-i18n-title="tool.plan" title="由外徑反解參數">
+      <i class="material-icons">calculate</i>
+    </div>
     <div id="setting-copy" class="side-tool" data-i18n-title="tool.copyJson" title="複製 JSON">
       <i class="material-icons">content_copy</i>
     </div>
@@ -197,6 +220,41 @@
     </div>
     <div id="setting-lang" class="side-tool" data-i18n-title="tool.lang" title="語言">
       <i class="material-icons">translate</i>
+    </div>
+  </div>
+
+  <!-- ── 版面反解：由外徑上限與內徑反推參數 ───────────────────────────── -->
+  <div id="plan-modal" class="modal wide-modal">
+    <div class="modal-content">
+      <h2 class="modal-title" data-i18n="plan.title">由外徑反解參數</h2>
+      <p class="hint" data-i18n-html="plan.intro"></p>
+      <div class="input-field plan-input">
+        <input id="planInner" type="number" min="0" step="1" inputmode="decimal" />
+        <label for="planInner" data-i18n="plan.innerTarget">保留中空直徑 (mm)</label>
+      </div>
+      <div class="plan-constraints" id="plan-constraints"></div>
+      <div id="plan-messages" class="messages" role="status" aria-live="polite"></div>
+      <div class="table-scroll plan-scroll">
+        <table class="ring-table plan-table">
+          <thead>
+            <tr>
+              <th data-i18n="plan.rings">圈數</th>
+              <th data-i18n="plan.fontSize">字級</th>
+              <th data-i18n="plan.gap">圈距 (pt)</th>
+              <th data-i18n="plan.ratio">行距比</th>
+              <th data-i18n="plan.n1">內圈字數</th>
+              <th data-i18n="plan.inner">實際內徑 (mm)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="plan-rows"></tbody>
+        </table>
+      </div>
+      <p class="hint plan-hidden" id="plan-hidden"></p>
+      <p class="hint" data-i18n-html="plan.note"></p>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect btn-flat" data-i18n="btn.close">關閉</a>
     </div>
   </div>
 

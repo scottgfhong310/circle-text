@@ -66,7 +66,7 @@ const lib = (() => {
 // ── ① markup ↔ handler：每顆側鍵都要有人綁 ─────────────────────────────
 check('① 每個 .side-tool 與動作鍵都有 handler', () => {
   const ids = [...html.matchAll(/id="(setting-[a-z-]+|import-apply)"/g)].map(m => m[1]);
-  if (ids.length < 8) return [`只掃到 ${ids.length} 個 id，markup 可能被改壞`];
+  if (ids.length < 9) return [`只掃到 ${ids.length} 個 id，markup 可能被改壞`];
   return ids
     .filter(id => !new RegExp(`\\$\\('${id}'\\)`).test(controller))
     .map(id => `#${id} 在 markup 上，但 circle-text.js 沒有 $('${id}')——死鍵`);
@@ -100,9 +100,13 @@ check('③ markup 的 data-i18n* key 三語齊備', () => {
 check('④ 程式動態組出的 key 三語齊備', () => {
   const dynamic = [];
   lib.MODES.forEach(m => dynamic.push('mode.hint.' + m));
-  ['arcOff', 'gapTight', 'emptyRing', 'sumMismatch'].forEach(c => dynamic.push('warn.' + c));
-  ['badFontSize', 'badGap', 'badN1', 'badRings', 'badTotal', 'solveFail', 'gapNeedsTwoRings']
-    .forEach(c => dynamic.push('err.' + c));
+  ['arcOff', 'gapTight', 'emptyRing', 'sumMismatch', 'overWidth'].forEach(c => dynamic.push('warn.' + c));
+  ['badFontSize', 'badGap', 'badN1', 'badRings', 'badTotal', 'solveFail', 'gapNeedsTwoRings',
+    'paperMargin'].forEach(c => dynamic.push('err.' + c));
+  ['badTotal', 'badOuterMax', 'badInnerTarget', 'innerGeOuter', 'noCandidate']
+    .forEach(c => dynamic.push('planErr.' + c));
+  ['dims.fits', 'dims.overLimit', 'paper.custom', 'plan.apply', 'plan.hidden', 'plan.cTotal',
+    'plan.cOuter', 'plan.cInner', 'plan.innerTarget', 'toast.planApplied'].forEach(k => dynamic.push(k));
   ['table.sum', 'table.sumTarget', 'toast.lang', 'toast.copied', 'toast.copyFail',
     'toast.downloaded', 'toast.imported', 'toast.importFail', 'err.title',
     'svg.legend', 'svg.baselines', 'svg.first', 'svg.last', 'svg.band'].forEach(k => dynamic.push(k));
@@ -266,6 +270,51 @@ check('⑯ snapshot 保留 rings[].characters 且總和等於目標', () => {
   if (snap.rings.some(x => typeof x.characters !== 'number')) problems.push('有 ring 缺 characters');
   const sum = snap.rings.reduce((a, b) => a + b.characters, 0);
   if (sum !== 2066) problems.push(`characters 總和 ${sum} ≠ 2066`);
+  return problems;
+});
+
+// ── ⑱ 版面反解：硬約束必須精準，軟目標才准讓步 ──────────────────────────
+check('⑱ 反解候選：外徑與總字數精準，內徑才讓步', () => {
+  const plan = lib.planByExtent({ total: 2066, outerMaxMm: 267, innerTargetMm: 55, minRings: 2, maxRings: 40 });
+  if (!plan.ok) return [`算不出候選：${plan.error}`];
+  const problems = [];
+  if (plan.candidates.length < 5) problems.push(`只有 ${plan.candidates.length} 筆候選`);
+  plan.candidates.forEach(c => {
+    if (Math.abs(c.outerDiameterMm - 267) > 1e-6) problems.push(`${c.rings} 圈：外徑 ${c.outerDiameterMm}`);
+    if (Math.abs(c.total - 2066) > 1e-6) problems.push(`${c.rings} 圈：總字數 ${c.total}`);
+    if (!Number.isInteger(c.rings) || !Number.isInteger(c.n1)) problems.push(`${c.rings} 圈：圈數或內圈字數非整數`);
+    if (Math.abs(c.innerDeltaMm) > 3) problems.push(`${c.rings} 圈：內徑讓步 ${c.innerDeltaMm.toFixed(2)}mm 過大`);
+  });
+  return problems;
+});
+
+// ── ⑲ 反解出來的參數，丟回 compute() 要算得出同一個版面 ────────────────
+check('⑲ 反解 → compute 往返一致', () => {
+  const plan = lib.planByExtent({ total: 2066, outerMaxMm: 267, innerTargetMm: 55, minRings: 14, maxRings: 22 });
+  if (!plan.ok) return [`算不出候選：${plan.error}`];
+  const problems = [];
+  plan.candidates.forEach(c => {
+    const r = lib.compute({
+      total: 2066, rings: c.rings, fontSize: c.fontSize, gap: c.gap,
+      n1: c.n1, padding: 24, mode: 'scale', outerMaxMm: 267
+    });
+    if (!r.ok) { problems.push(`${c.rings} 圈：compute 失敗 ${r.error}`); return; }
+    if (Math.abs(r.geom.outerDiameterMm - 267) > 0.01) problems.push(`${c.rings} 圈：外徑 ${r.geom.outerDiameterMm.toFixed(2)}`);
+    if (r.geom.fitsOuterMax !== true) problems.push(`${c.rings} 圈：fitsOuterMax 非 true`);
+    if (Math.abs(r.arc.deltaPct) > 1) problems.push(`${c.rings} 圈：字距偏差 ${r.arc.deltaPct.toFixed(2)}%`);
+  });
+  return problems;
+});
+
+// ── ⑳ 外徑上限的三值語意：未設定 ≠ 合格 ───────────────────────────────
+check('⑳ 沒設外徑上限時 fitsOuterMax 為 null（未判定，不假裝合格）', () => {
+  const base = { total: 2066, rings: 20, fontSize: 12, gap: 14, n1: 57, padding: 24, mode: 'scale' };
+  const problems = [];
+  if (lib.compute(base).geom.fitsOuterMax !== null) problems.push('未設上限卻不是 null');
+  if (lib.compute({ ...base, outerMaxMm: 1000 }).geom.fitsOuterMax !== true) problems.push('放得下卻不是 true');
+  const over = lib.compute({ ...base, outerMaxMm: 200 });
+  if (over.geom.fitsOuterMax !== false) problems.push('放不下卻不是 false');
+  if (!over.warnings.some(w => w.code === 'overWidth')) problems.push('放不下卻沒發 overWidth 警告');
   return problems;
 });
 

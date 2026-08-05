@@ -27,6 +27,12 @@
 
   var el = {};
   var selectInst = null;
+  var paperInst = null;
+  var planCandidates = [];
+
+  /** 候選表只列這個行距比區間——低於下限是重疊、高於上限是字小到沒有意義 */
+  var RATIO_MIN = 0.8;
+  var RATIO_MAX = 4;
   var writing = false;     // 程式寫欄位時抑制自己的 input handler
   var renderTimer = null;
 
@@ -98,15 +104,9 @@
 
   /** 讀取當前欄位值（唯一的輸入來源；不做任何快取） */
   function readInputs() {
-    return {
-      total: el.total.value,
-      rings: el.rings.value,
-      fontSize: el.fontSize.value,
-      gap: el.gap.value,
-      n1: el.n1.value,
-      padding: el.padding.value,
-      mode: el.mode.value
-    };
+    var out = { mode: el.mode.value };
+    Lib.NUMERIC_FIELDS.forEach(function (k) { out[k] = el[k].value; });
+    return out;
   }
 
   function currentResult() {
@@ -205,7 +205,8 @@
       result.warnings.forEach(function (w) {
         out.push(msg('warn', t('warn.' + w.code, {
           arc: f2(w.arc), fontSize: f2(w.fontSize), pct: f2(w.pct),
-          gap: f2(w.gap), n: w.n, got: w.got, want: w.want
+          gap: f2(w.gap), n: w.n, got: w.got, want: w.want,
+          outer: f2(w.outer), max: f2(w.max), over: f2(w.over)
         })));
       });
     }
@@ -233,6 +234,8 @@
       el.m.centralPx.textContent = '';
       el.m.arcDelta.textContent = '';
       el.m.arcDelta.classList.remove('is-off');
+      el.m.outerFit.textContent = '';
+      el.m.outerFit.className = 'fit-badge';
       return;
     }
     var g = result.geom;
@@ -243,6 +246,12 @@
     el.m.inner.textContent = f2(2 * g.innerExtent) + ' × ' + f2(2 * g.innerExtent);
     el.m.innerMm.textContent = f2(2 * g.innerExtent * Lib.PT_TO_MM) + ' × ' +
       f2(2 * g.innerExtent * Lib.PT_TO_MM) + ' mm';
+    // 沒設上限就什麼都不顯示——「未判定」不該被畫成「合格」（三值語意）
+    var fits = g.fitsOuterMax;
+    el.m.outerFit.className = 'fit-badge' + (fits === true ? ' is-fit' : fits === false ? ' is-over' : '');
+    el.m.outerFit.textContent = fits === null ? ''
+      : t(fits ? 'dims.fits' : 'dims.overLimit', { max: f2(g.outerMaxMm) });
+
     el.m.char.textContent = f2(result.input.fontSize) + ' × ' + f2(result.input.fontSize);
     el.m.central.textContent = f2(g.centralMaxSize);
     el.m.centralPx.textContent = '≈ ' + f2(g.centralMaxSizePx) + ' px';
@@ -290,6 +299,114 @@
     } catch (e) { /* file:// 等情境忽略 */ }
   }
 
+  // ── 紙張換算：填的是「外徑上限」那一格 ────────────────────────────────
+
+  function initPaperSelect() {
+    var opts = ['<option value="custom">' + escapeHtml(t('paper.custom')) + '</option>'];
+    Lib.PAPER_SIZES.forEach(function (p) {
+      // 紙張名是**資料不是 UI 文案**（§6.1），三語都顯示同一個 A3；尺寸附在後面當佐證
+      opts.push('<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.id) +
+        '（' + p.shortMm + ' × ' + p.longMm + ' mm）</option>');
+    });
+    var keep = el.paper.value;
+    el.paper.innerHTML = opts.join('');
+    if (keep) el.paper.value = keep;
+    if (paperInst) paperInst.destroy();
+    paperInst = M.FormSelect.init(el.paper);
+  }
+
+  /** 紙張或留邊改動 → 算出可用外徑寫進 outerMaxMm */
+  function applyPaper() {
+    if (el.paper.value === 'custom') return;
+    var mm = Lib.outerLimitFromPaper(el.paper.value, el.paperMargin.value);
+    if (!isFinite(mm)) { toast(t('err.paperMargin'), 'red'); return; }
+    setValue(el.outerMaxMm, String(Number(mm.toFixed(2))));
+    if (window.M && M.updateTextFields) M.updateTextFields();
+  }
+
+  // ── 版面反解 ──────────────────────────────────────────────────────────
+
+  function openPlanner() {
+    // 預設帶入目前版面的**中空**直徑（不是面板那格「內圈直徑」——那是基線直徑 2R₁，
+    // 且由 N₁ 與字級推導而來，正是反解要解的東西，拿它當輸入是循環定義）
+    if (!Lib.num(el.planInner.value)) {
+      var r = currentResult();
+      var mm = r.ok ? 2 * r.geom.innerExtent * Lib.PT_TO_MM : 55;
+      setValue(el.planInner, String(Number(mm.toFixed(1))));
+      if (window.M && M.updateTextFields) M.updateTextFields();
+    }
+    renderPlan();
+    M.Modal.getInstance(el.planModal).open();
+  }
+
+  function renderPlan() {
+    var total = Lib.num(el.total.value);
+    var outerMaxMm = Lib.num(el.outerMaxMm.value);
+    var innerMm = Lib.num(el.planInner.value);
+
+    el.planConstraints.innerHTML = [
+      ['plan.cTotal', isFinite(total) ? total.toLocaleString('en-US') : '—'],
+      ['plan.cOuter', isFinite(outerMaxMm) ? f2(outerMaxMm) + ' mm' : '—'],
+      ['plan.cInner', isFinite(innerMm) ? f2(innerMm) + ' mm' : '—']
+    ].map(function (p) {
+      return '<span>' + escapeHtml(t(p[0])) + ' <b>' + escapeHtml(p[1]) + '</b></span>';
+    }).join('');
+
+    var plan = Lib.planByExtent({
+      total: total, outerMaxMm: outerMaxMm, innerTargetMm: innerMm,
+      minRings: 2, maxRings: 40
+    });
+    if (!plan.ok) {
+      el.planMessages.innerHTML = msg('error', t('planErr.' + plan.error));
+      el.planRows.innerHTML = '';
+      return;
+    }
+    el.planMessages.innerHTML = '';
+
+    // 每個整數圈數都是合法解，但兩端都荒謬（2 圈＝字級 0.49mm、行距比 215）。
+    // 只列實用範圍，並**明講濾掉幾筆**——靜默截斷會被讀成「就這些解」。
+    var shown = plan.candidates.filter(function (c) {
+      return c.ratio >= RATIO_MIN && c.ratio <= RATIO_MAX;
+    });
+    var hidden = plan.candidates.length - shown.length;
+    el.planHidden.textContent = hidden
+      ? t('plan.hidden', { n: hidden, lo: RATIO_MIN, hi: RATIO_MAX })
+      : '';
+
+    el.planRows.innerHTML = shown.map(function (c, i) {
+      // 行距比 <1 相鄰圈的字會重疊；1~1.1 很緊但還可以
+      var cls = c.ratio < 1 ? ' class="is-overlap"' : c.ratio < 1.1 ? ' class="is-tight"' : '';
+      return '<tr' + cls + '>' +
+        '<td>' + c.rings + '</td>' +
+        '<td class="chars">' + f2(c.fontSizeMm) + ' mm<br><span class="unit">' + f2(c.fontSize) + ' pt</span></td>' +
+        '<td>' + f2(c.gap) + '</td>' +
+        '<td class="ratio">' + Lib.formatNumber(c.ratio, 2) + '</td>' +
+        '<td>' + c.n1 + '</td>' +
+        '<td>' + f2(c.innerDiameterMm) +
+        ' <span class="unit">(' + (c.innerDeltaMm >= 0 ? '+' : '') + f2(c.innerDeltaMm) + ')</span></td>' +
+        '<td><button type="button" class="plan-apply" data-i="' + i + '">' +
+        escapeHtml(t('plan.apply')) + '</button></td>' +
+        '</tr>';
+    }).join('');
+
+    planCandidates = shown;
+  }
+
+  function applyCandidate(c) {
+    setValue(el.rings, String(c.rings));
+    setValue(el.n1, String(c.n1));
+    setValue(el.fontSize, String(Number(c.fontSize.toFixed(4))));
+    setValue(el.gap, String(Number(c.gap.toFixed(4))));
+    // 候選的理論總字數恰等於目標，故 scale 模式的縮放係數為 1、字距不失真
+    setValue(el.mode, 'scale');
+    refreshSelect();
+    if (window.M && M.updateTextFields) M.updateTextFields();
+    clearTimeout(renderTimer);
+    render();
+    M.Modal.getInstance(el.planModal).close();
+    toast(t('toast.planApplied', { n: c.rings }), 'teal');
+  }
+
   // ── SVG ───────────────────────────────────────────────────────────────
 
   function svgLabels() {
@@ -332,9 +449,10 @@
   }
 
   function cacheEls() {
-    ['total', 'rings', 'fontSize', 'gap', 'n1', 'padding', 'innerDiameter', 'mode'].forEach(function (k) {
-      el[k] = $(k);
-    });
+    ['total', 'rings', 'fontSize', 'gap', 'n1', 'padding', 'outerMaxMm',
+      'innerDiameter', 'mode', 'paper', 'paperMargin'].forEach(function (k) {
+        el[k] = $(k);
+      });
     el.wrap = {};
     ['rings', 'gap', 'n1', 'innerDiameter'].forEach(function (k) {
       el.wrap[k] = el[k].closest('[data-field]');
@@ -348,12 +466,19 @@
     el.importModal = $('import-modal');
     el.importText = $('import-text');
     el.modeIcon = document.querySelector('#setting-mode i');
+    el.planModal = $('plan-modal');
+    el.planRows = $('plan-rows');
+    el.planConstraints = $('plan-constraints');
+    el.planMessages = $('plan-messages');
+    el.planHidden = $('plan-hidden');
+    el.planInner = $('planInner');
     el.m = {
       r1: $('m-r1'), router: $('m-router'),
       outer: $('m-outer'), outerMm: $('m-outer-mm'),
       inner: $('m-inner'), innerMm: $('m-inner-mm'),
       char: $('m-char'), central: $('m-central'), centralPx: $('m-central-px'),
-      arc: $('m-arc'), arcDelta: $('m-arc-delta')
+      arc: $('m-arc'), arcDelta: $('m-arc-delta'),
+      outerFit: $('m-outer-fit')
     };
   }
 
@@ -377,10 +502,34 @@
       clearTimeout(renderTimer);
       render();
     });
+    el.paper.addEventListener('change', function () { applyPaper(); scheduleRender(); });
+    el.paperMargin.addEventListener('input', function () {
+      if (writing) return;
+      applyPaper(); scheduleRender();
+    });
+    // 手動改外徑上限＝不再跟著紙張，把紙張切回「自訂」免得畫面自相矛盾
+    el.outerMaxMm.addEventListener('input', function () {
+      if (writing) return;
+      if (el.paper.value !== 'custom') { el.paper.value = 'custom'; initPaperSelect(); }
+    });
   }
 
   function bindTools() {
     $('setting-preview').addEventListener('click', openPreview);
+
+    $('setting-plan').addEventListener('click', openPlanner);
+
+    el.planInner.addEventListener('input', function () {
+      if (writing) return;
+      renderPlan();
+    });
+
+    el.planRows.addEventListener('click', function (e) {
+      var btn = e.target.closest('.plan-apply');
+      if (!btn) return;
+      var c = planCandidates[Number(btn.dataset.i)];
+      if (c) applyCandidate(c);
+    });
 
     $('setting-copy').addEventListener('click', function () {
       var result = currentResult();
@@ -447,6 +596,8 @@
 
     M.Modal.init(document.querySelectorAll('.modal'), { dismissible: true });
     selectInst = M.FormSelect.init(el.mode);
+    setValue(el.paperMargin, '15');
+    initPaperSelect();
 
     applyInputs(input);
     bindInputs();
@@ -458,7 +609,9 @@
     document.addEventListener('i18n:changed', function () {
       window.I18n.apply();
       refreshSelect();          // FormSelect 有自己的 DOM，換語言要重建
+      initPaperSelect();
       render();
+      if (el.planModal.classList.contains('open')) renderPlan();
       if (el.svgModal.classList.contains('open')) el.svgHost.innerHTML = buildCurrentSvg() || '';
     });
 

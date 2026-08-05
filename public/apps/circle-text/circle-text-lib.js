@@ -44,8 +44,25 @@
   /** 配平模式；順序即 UI 下拉順序 */
   var MODES = ['rings', 'gap', 'n1', 'scale', 'none'];
 
-  /** 輸入欄位（深連結與 snapshot 共用同一組鍵） */
-  var NUMERIC_FIELDS = ['total', 'rings', 'fontSize', 'gap', 'n1', 'padding'];
+  /** 輸入欄位（深連結與 snapshot 共用同一組鍵）。`outerMaxMm` 以 mm 存，深連結才讀得懂 */
+  var NUMERIC_FIELDS = ['total', 'rings', 'fontSize', 'gap', 'n1', 'padding', 'outerMaxMm'];
+
+  /**
+   * 紙張短邊（mm）——圓形版面吃的是短邊，長邊放不下也沒用。
+   * 這是**資料不是 UI 文案**（§6.1）：換一支 app 顯示同一批紙張，A3 還是 297×420，
+   * 所以放這裡、不進 locales。名稱本身不翻譯。
+   */
+  var PAPER_SIZES = [
+    { id: 'A2', shortMm: 420, longMm: 594 },
+    { id: 'A3', shortMm: 297, longMm: 420 },
+    { id: 'A4', shortMm: 210, longMm: 297 },
+    { id: 'A5', shortMm: 148, longMm: 210 },
+    { id: 'Letter', shortMm: 215.9, longMm: 279.4 },
+    { id: 'Tabloid', shortMm: 279.4, longMm: 431.8 }
+  ];
+
+  /** 外徑上限的比較容差（mm）；見 compute() 內的說明 */
+  var OUTER_TOLERANCE_MM = 0.01;
 
   /** 超過這個比例就發 arcOff 警告（1%） */
   var ARC_TOLERANCE = 0.01;
@@ -156,6 +173,112 @@
     return Math.max(1, Math.round(n1));
   }
 
+  // ── 版面反解：由外徑上限與內徑反推參數 ────────────────────────────────────
+
+  /** 紙張短邊減去兩側邊界＝可用外徑（mm）。圓形版面吃短邊，長邊放不下也沒用。 */
+  function outerLimitFromPaper(paperId, marginMm) {
+    var p = null;
+    for (var i = 0; i < PAPER_SIZES.length; i++) {
+      if (PAPER_SIZES[i].id === paperId) { p = PAPER_SIZES[i]; break; }
+    }
+    if (!p) return NaN;
+    var m = num(marginMm);
+    if (!isFinite(m) || m < 0) m = 0;
+    var w = p.shortMm - 2 * m;
+    return w > 0 ? w : NaN;
+  }
+
+  /**
+   * 給總字數、外徑上限、內徑目標，反解「字級／圈數／圈距／內圈字數」。
+   *
+   * ⚠️ **這組約束不是唯一解，而是一整族解。** 推導：
+   *   外徑釘住 ⇒ R_outer = (W − s)/2；內徑釘住 ⇒ R₁ = (D + s)/2
+   *   總字數   T = Σ 2πRᵢ/s = π·n·(R₁ + R_outer)/s
+   *   而 R₁ + R_outer = (D + W)/2 —— **s 被消掉了**
+   *   ⇒ n = s · 2T/(π(D+W))     圈數與字級嚴格成正比，仍差一個判準才能定案。
+   * 所以本函式**不挑**，而是把每個整數圈數對應的解都列出來，由呼叫端（使用者）選。
+   *
+   * 整數化的取捨：`n` 與 `N₁` 都必須是整數，三個約束無法同時精確滿足。
+   * **釘死外徑與總字數**（硬約束：不能超出紙張、字要全放得下），
+   * 讓**內徑**小幅讓步（它是保留區、軟目標）——每筆都回報實際內徑與偏差。
+   * 給定整數 n 與 N₁ 時字級由此唯一決定：
+   *   s = πW / (2T/n − N₁ + π)
+   *
+   * @param {object} input {total, outerMaxMm, innerTargetMm, minRings, maxRings}
+   * @returns {object} { ok, error, candidates: [...] }（依圈數遞增）
+   */
+  function planByExtent(input) {
+    input = input || {};
+    var total = num(input.total);
+    var W = num(input.outerMaxMm) * MM_TO_PT;
+    var D = num(input.innerTargetMm) * MM_TO_PT;
+    var minRings = Math.max(2, Math.round(num(input.minRings)) || 2);
+    var maxRings = Math.round(num(input.maxRings)) || 40;
+
+    if (!isPos(total)) return planFail('badTotal');
+    if (!isPos(W)) return planFail('badOuterMax');
+    if (!(isFinite(D) && D >= 0)) return planFail('badInnerTarget');
+    if (D >= W) return planFail('innerGeOuter');
+
+    // 理想（連續）解：n = k·s，用來替每個 n 取最接近的整數 N₁
+    var k = 2 * total / (Math.PI * (D + W));
+    if (!isPos(k)) return planFail('badTotal');
+
+    var out = [];
+    for (var n = minRings; n <= maxRings; n++) {
+      var s0 = n / k;                                   // 該圈數下的理想字級
+      if (!(s0 > 0)) continue;
+      var n1Ideal = Math.PI * (D + s0) / s0;            // 2π·R₁/s，R₁=(D+s)/2
+      if (!isFinite(n1Ideal) || n1Ideal < 1) continue;
+
+      var best = null;
+      var tries = [Math.floor(n1Ideal), Math.ceil(n1Ideal)];
+      for (var t = 0; t < tries.length; t++) {
+        var c = extentCandidate(n, tries[t], total, W, D);
+        if (!c) continue;
+        if (!best || Math.abs(c.innerDeltaMm) < Math.abs(best.innerDeltaMm)) best = c;
+      }
+      if (best) out.push(best);
+    }
+    if (!out.length) return planFail('noCandidate');
+    return { ok: true, error: null, candidates: out };
+  }
+
+  /** 單一 (n, N₁) 的精確解；不合法（字級或圈距為負、圈重疊到負值）回 null */
+  function extentCandidate(n, n1, total, W, D) {
+    if (!(n >= 2) || !(n1 >= 1)) return null;
+    var denom = 2 * total / n - n1 + Math.PI;
+    if (!(denom > 0)) return null;
+    var s = Math.PI * W / denom;
+    if (!isPos(s) || s >= W) return null;
+
+    var R1 = n1 * s / TWO_PI;
+    var Router = (W - s) / 2;
+    if (!(Router > R1)) return null;
+    var gap = (Router - R1) / (n - 1);
+    if (!(gap >= 0)) return null;
+
+    var innerMm = 2 * (R1 - s / 2) * PT_TO_MM;
+    return {
+      rings: n,
+      n1: n1,
+      fontSize: s,
+      fontSizeMm: s * PT_TO_MM,
+      gap: gap,
+      ratio: gap / s,                                   // 行距比：<1 表示相鄰圈的字會重疊
+      R1: R1,
+      Router: Router,
+      outerDiameterMm: 2 * (Router + s / 2) * PT_TO_MM, // 恆等於上限（外徑被釘住）
+      innerDiameterMm: innerMm,
+      innerDeltaMm: innerMm - D * PT_TO_MM,             // 內徑讓步了多少
+      total: Math.PI * n * (R1 + Router) / s            // 恆等於目標（總字數被釘住）
+    };
+  }
+
+  function planFail(code) {
+    return { ok: false, error: code, candidates: [] };
+  }
+
   // ── 取整分配 ──────────────────────────────────────────────────────────────
 
   /**
@@ -206,6 +329,7 @@
     var n1 = num(input.n1);
     var padding = num(input.padding);
     if (!isFinite(padding) || padding < 0) padding = 0;
+    var outerMaxMm = num(input.outerMaxMm);             // 選填的外徑上限（紙張寬度等硬邊界）
 
     // 驗證：任何一項不成立就明確失敗，不產出 NaN 表格
     if (!isPos(fontSize)) return fail('badFontSize', mode);
@@ -288,6 +412,13 @@
     if (mode !== 'none' && sumCounts !== Math.round(total)) {
       warnings.push({ code: 'sumMismatch', got: sumCounts, want: Math.round(total) });
     }
+    // 外徑上限是「放不放得進紙張」的硬邊界，任何模式都要檢查。
+    // 容差 0.01mm：低於印刷解析度，且參數寫回欄位時的四捨五入殘差本來就在這個量級，
+    // 用 1e-6 比會把「剛好貼齊上限」誤報成超出。
+    var outerMm = 2 * outerExtent * PT_TO_MM;
+    if (isPos(outerMaxMm) && outerMm > outerMaxMm + OUTER_TOLERANCE_MM) {
+      warnings.push({ code: 'overWidth', outer: outerMm, max: outerMaxMm, over: outerMm - outerMaxMm });
+    }
 
     return {
       ok: true,
@@ -296,7 +427,8 @@
       solvedField: solvedField,
       input: {
         total: total, rings: rings, fontSize: fontSize,
-        gap: gap, n1: n1, padding: padding, mode: mode
+        gap: gap, n1: n1, padding: padding, mode: mode,
+        outerMaxMm: isFinite(outerMaxMm) ? outerMaxMm : null
       },
       solved: solved,
       R1: R1,
@@ -320,6 +452,8 @@
         innerDiameterMm: 2 * R1 * PT_TO_MM,
         outerDiameterPt: 2 * outerExtent,
         outerDiameterMm: 2 * outerExtent * PT_TO_MM,
+        outerMaxMm: isFinite(outerMaxMm) ? outerMaxMm : null,
+        fitsOuterMax: isPos(outerMaxMm) ? (2 * outerExtent * PT_TO_MM <= outerMaxMm + OUTER_TOLERANCE_MM) : null,
         padding: padding
       },
       warnings: warnings
@@ -474,7 +608,8 @@
         n1: result.solved.n1,
         padding: result.input.padding,
         mode: result.mode,
-        innerDiameterMm: result.geom.innerDiameterMm
+        innerDiameterMm: result.geom.innerDiameterMm,
+        outerMaxMm: result.input.outerMaxMm
       },
       solved: { field: result.solvedField, value: result.solvedField ? result.solved[result.solvedField] : null },
       derived: {
@@ -584,6 +719,9 @@
     compute: compute,
     buildSvg: buildSvg,
     snapshot: snapshot,
+    PAPER_SIZES: PAPER_SIZES,
+    outerLimitFromPaper: outerLimitFromPaper,
+    planByExtent: planByExtent,
     parseQuery: parseQuery,
     buildQuery: buildQuery,
     parseSnapshot: parseSnapshot

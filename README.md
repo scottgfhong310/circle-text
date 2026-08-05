@@ -1,6 +1,6 @@
 # circle-text
 
-> 版本 v1.0｜最後更新 2026-08-04
+> 版本 v1.1｜最後更新 2026-08-04
 
 [English](README.md) ｜ [繁體中文](README.zh-Hant.md) ｜ [日本語](README.ja.md)
 
@@ -42,6 +42,9 @@ at the same time — and when they do not, you should be able to see it.
 - Live recompute — every export (JSON, link, SVG) is derived from the current fields, never a cached snapshot.
 - Millimetre readouts alongside points, plus a two-way inner-diameter field for physical constraints.
 - SVG diagram: baselines, safe area, radius scale; **downloadable at true print size** (`pt` units).
+- A **max outer diameter** constraint (with an A2–A5 / Letter paper helper) checked in every mode.
+- **Solve from the sheet**: give it a total, a width limit and a hollow diameter, and it lists every
+  workable combination of type size, ring count and gap.
 - Every parameter lives in the URL — copying the link is saving your work.
 - Import from pasted JSON, including the legacy `circle-text-3` format.
 - Warnings for tight gaps, empty rings and spacing drift.
@@ -58,7 +61,7 @@ npm start          # → http://localhost:3000/apps/circle-text/
 static files, redirects `/`, and returns JSON 404s under `/api/`.
 
 ```bash
-npm run verify     # 17 contract checks
+npm run verify     # 20 contract checks
 node scripts/verify.js --selftest   # confirm each check can actually fail
 ```
 
@@ -91,11 +94,41 @@ circle-text/
 Every parameter is a query field, so a URL fully describes a layout:
 
 ```
-/apps/circle-text/?total=2066&rings=20&fontSize=12&gap=14&n1=57&padding=24&mode=gap
+/apps/circle-text/?total=2066&rings=18&fontSize=12.47&gap=16.99&n1=42&padding=24&outerMaxMm=267&mode=scale
 ```
 
 `mode` is one of `rings` `gap` `n1` `scale` `none`. Unknown or malformed fields are ignored, and the
 app rewrites the URL as you edit, so the address bar always matches what is on screen.
+
+## Solving from a width limit
+
+Fix the **total**, the **max outer diameter** `W` and the **hollow diameter** `D`, and something
+surprising happens:
+
+```
+R₁ = (D + s)/2 ,  Rₒ = (W − s)/2   ⇒   R₁ + Rₒ = (D + W)/2      the type size cancels
+T  = π·n·(R₁ + Rₒ)/s               ⇒   n = s · 2T/(π(D + W))
+```
+
+Ring count and type size are **strictly proportional**, so these three constraints do not have one
+solution — they have a whole family of them. The app therefore does not pick: it lists every integer
+ring count with the type size, gap and leading ratio that follow, and you choose.
+
+`n` and `N₁` must be integers, so the three constraints cannot all hold exactly. The outer diameter
+and the total are **pinned** (the sheet is a hard edge and every character has to fit); the **hollow
+diameter** gives way by well under a millimetre, and each row reports by how much.
+
+Example — 2066 characters on A3 with 15 mm margins (`W` = 267 mm) and a 55 mm hollow:
+
+| Rings | Type size | Gap | Leading | Inner Ø |
+|---|---|---|---|---|
+| 15 | 3.67 mm | 20.75 pt | 1.99 | 54.73 (−0.27) |
+| 18 | 4.40 mm | 16.99 pt | 1.36 | 54.41 (−0.59) |
+| 20 | 4.88 mm | 15.15 pt | 1.09 | 54.19 (−0.81) |
+| 21 | 5.15 mm | 14.26 pt | 0.98 | 55.49 (+0.49) — rings overlap |
+
+Rows outside a leading ratio of 0.8–4 are omitted (too tight overlaps, too loose makes the type
+pointlessly small); the count omitted is stated, never silently dropped.
 
 ## Core library
 
@@ -123,6 +156,9 @@ JSON.stringify(CT.snapshot(result), null, 2);            // → the JSON the cop
 | `snapshot(result)` | JSON-ready object (below) |
 | `parseQuery/buildQuery` | deep-link round trip |
 | `parseSnapshot(text)` | inputs from pasted JSON, or `null` |
+| `planByExtent(input)` | every workable candidate for a width limit (above) |
+| `outerLimitFromPaper(id, margin)` | usable width in mm from a paper size (short edge − 2 × margin) |
+| `PAPER_SIZES` | A2 / A3 / A4 / A5 / Letter / Tabloid, in mm |
 
 ## Data structure
 

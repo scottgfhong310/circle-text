@@ -177,6 +177,22 @@ body {
   cursor: default;
 }
 
+/* 紙張換算小工具：兩格併一列，視覺上從屬於上面的「外徑上限」 */
+.paper-helper {
+  display: flex;
+  gap: 14px;
+  margin: -.4rem 0 .2rem;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.paper-helper .input-field {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: .2rem;
+  margin-bottom: .2rem;
+}
+
 /* ── 尺寸面板 ────────────────────────────────────────────────────────── */
 .metrics {
   display: grid;
@@ -239,6 +255,84 @@ body {
 .delta.is-off {
   color: var(--warn);
   font-weight: 600;
+}
+
+/* 外徑是否放得進上限：沒設上限就不顯示（三值語意的「未判定」＝不留白也不假裝合格） */
+.fit-badge {
+  display: block;
+  font-size: .7rem;
+  font-weight: 600;
+}
+
+.fit-badge.is-fit {
+  color: var(--ok);
+}
+
+.fit-badge.is-over {
+  color: var(--danger);
+}
+
+/* ── 版面反解候選表 ─────────────────────────────────────────────────── */
+.plan-constraints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 10px 0 12px;
+}
+
+.plan-constraints span {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: .74rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.plan-constraints b {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+}
+
+.plan-scroll {
+  max-height: 46vh;
+}
+
+.plan-table td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.plan-table tr.is-tight td {
+  color: var(--warn);
+}
+
+.plan-table tr.is-overlap td {
+  color: var(--danger);
+}
+
+.plan-table td.ratio {
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-apply {
+  padding: 3px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: .74rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.plan-apply:hover,
+.plan-apply:focus,
+.plan-apply:active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 
 /* ── 訊息（警告／錯誤）───────────────────────────────────────────────── */
